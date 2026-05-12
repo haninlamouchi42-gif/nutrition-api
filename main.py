@@ -13,7 +13,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-GROK_API_KEY = "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"
+GROQ_API_KEY = "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"
 
 class PlanRequest(BaseModel):
     plan_name: str
@@ -35,13 +35,13 @@ Reponds UNIQUEMENT en JSON sans backticks:
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "https://api.x.ai/v1/chat/completions",
+            "https://api.groq.com/openai/v1/chat/completions",
             headers={
-                "Authorization": f"Bearer {GROK_API_KEY}",
+                "Authorization": f"Bearer {GROQ_API_KEY}",
                 "Content-Type": "application/json"
             },
             json={
-                "model": "grok-3-mini",
+                "model": "llama-3.3-70b-versatile",
                 "messages": [{"role": "user", "content": prompt}]
             },
             timeout=60.0
