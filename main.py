@@ -13,7 +13,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-OPENROUTER_API_KEY = "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"
+GROK_API_KEY = "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"
 
 class PlanRequest(BaseModel):
     plan_name: str
@@ -35,24 +35,20 @@ Reponds UNIQUEMENT en JSON sans backticks:
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "https://openrouter.ai/api/v1/chat/completions",
+            "https://api.x.ai/v1/chat/completions",
             headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://nutrition-api-itqo.onrender.com",
-                "X-Title": "Nutrition API"
+                "Authorization": f"Bearer {GROK_API_KEY}",
+                "Content-Type": "application/json"
             },
             json={
-                "model": "meta-llama/llama-3.3-70b-instruct:free",
+                "model": "grok-3-mini",
                 "messages": [{"role": "user", "content": prompt}]
             },
             timeout=60.0
         )
         data = response.json()
-        
         if "choices" not in data:
             return {"error": str(data)}
-        
         text = data["choices"][0]["message"]["content"]
         text = text.replace("```json", "").replace("```", "").strip()
         result = json.loads(text)
