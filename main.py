@@ -38,15 +38,21 @@ Reponds UNIQUEMENT en JSON sans backticks:
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://nutrition-api-itqo.onrender.com",
+                "X-Title": "Nutrition API"
             },
             json={
                 "model": "meta-llama/llama-3.3-70b-instruct:free",
                 "messages": [{"role": "user", "content": prompt}]
             },
-            timeout=30.0
+            timeout=60.0
         )
         data = response.json()
+        
+        if "choices" not in data:
+            return {"error": str(data)}
+        
         text = data["choices"][0]["message"]["content"]
         text = text.replace("```json", "").replace("```", "").strip()
         result = json.loads(text)
