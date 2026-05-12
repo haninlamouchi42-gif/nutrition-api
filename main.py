@@ -13,7 +13,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ANTHROPIC_API_KEY = "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"
+ANTHROPIC_API_KEY = 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
 
 class PlanRequest(BaseModel):
     plan_name: str
