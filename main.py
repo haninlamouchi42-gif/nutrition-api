@@ -13,7 +13,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = "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"
 
 class PlanRequest(BaseModel):
     plan_name: str
