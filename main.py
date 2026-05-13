@@ -205,7 +205,7 @@ async def generate_pdf(req: PDFRequest):
         pdf.cell(0, 5, "Ingredients:", ln=True)
         pdf.set_font("Helvetica", "", 9)
         pdf.set_text_color(100, 100, 100)
-        pdf.multi_cell(0, 5, "  •  ".join(repas.ingredients))
+        pdf.multi_cell(0, 5, "  -  ".join(repas.ingredients))
         pdf.ln(4)
 
         # Separator
