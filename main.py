@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, validator
+from typing import List, Any
 import httpx
 import json
 import base64
@@ -16,8 +16,6 @@ app.add_middleware(
 )
 
 GROQ_API_KEY = "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"
-
-# ── Models ────────────────────────────────────────────────────────────────────
 
 class PlanRequest(BaseModel):
     plan_name: str
@@ -42,9 +40,15 @@ class PDFRequest(BaseModel):
     protein_pct: int
     carbs_pct: int
     fat_pct: int
-    repas: List[RepasItem]
+    repas: Any = None
 
-# ── Generate Meals ─────────────────────────────────────────────────────────────
+    @validator('repas', pre=True)
+    def parse_repas(cls, v):
+        if isinstance(v, str):
+            v = json.loads(v)
+        if isinstance(v, dict) and 'repas' in v:
+            v = v['repas']
+        return v
 
 @app.post("/generate-meals")
 async def generate_meals(plan: PlanRequest):
@@ -82,13 +86,18 @@ Reponds UNIQUEMENT en JSON valide, rien d'autre, pas de texte avant ou apres:
         result = json.loads(text)
         return result
 
-# ── Generate PDF ───────────────────────────────────────────────────────────────
-
 @app.post("/generate-pdf")
 async def generate_pdf(req: PDFRequest):
     protein_g = round((req.calorie_target * req.protein_pct / 100) / 4)
     carbs_g   = round((req.calorie_target * req.carbs_pct   / 100) / 4)
     fat_g     = round((req.calorie_target * req.fat_pct     / 100) / 9)
+
+    # Parse repas
+    repas_list = req.repas
+    if repas_list is None:
+        repas_list = []
+    if isinstance(repas_list, dict) and 'repas' in repas_list:
+        repas_list = repas_list['repas']
 
     pdf = FPDF()
     pdf.add_page()
@@ -155,33 +164,48 @@ async def generate_pdf(req: PDFRequest):
         "Diner":          (80,  150, 255),
     }
 
-    for repas in req.repas:
-        r, g, b = badge_colors.get(repas.type, (200, 200, 200))
+    for repas in repas_list:
+        if isinstance(repas, dict):
+            r_type = repas.get('type', '')
+            r_nom = repas.get('nom', '')
+            r_desc = repas.get('description', '')
+            r_cal = repas.get('calories', 0)
+            r_prot = repas.get('proteines', 0)
+            r_gluc = repas.get('glucides', 0)
+            r_lip = repas.get('lipides', 0)
+            r_ing = repas.get('ingredients', [])
+        else:
+            r_type = repas.type
+            r_nom = repas.nom
+            r_desc = repas.description
+            r_cal = repas.calories
+            r_prot = repas.proteines
+            r_gluc = repas.glucides
+            r_lip = repas.lipides
+            r_ing = repas.ingredients
 
-        # Badge type
-        pdf.set_fill_color(r, g, b)
+        rc, gc, bc = badge_colors.get(r_type, (200, 200, 200))
+
+        pdf.set_fill_color(rc, gc, bc)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(38, 7, repas.type, align="C", fill=True, ln=True)
+        pdf.cell(38, 7, r_type, align="C", fill=True, ln=True)
         pdf.ln(1)
 
-        # Nom
         pdf.set_text_color(30, 30, 30)
         pdf.set_font("Helvetica", "B", 13)
-        pdf.cell(0, 7, repas.nom, ln=True)
+        pdf.cell(0, 7, r_nom, ln=True)
 
-        # Description
         pdf.set_text_color(120, 120, 120)
         pdf.set_font("Helvetica", "I", 10)
-        pdf.multi_cell(0, 5, repas.description)
+        pdf.multi_cell(0, 5, r_desc)
         pdf.ln(2)
 
-        # Macros
         macros = [
-            ("Calories",  f"{repas.calories} kcal"),
-            ("Proteines", f"{repas.proteines}g"),
-            ("Glucides",  f"{repas.glucides}g"),
-            ("Lipides",   f"{repas.lipides}g"),
+            ("Calories",  f"{r_cal} kcal"),
+            ("Proteines", f"{r_prot}g"),
+            ("Glucides",  f"{r_gluc}g"),
+            ("Lipides",   f"{r_lip}g"),
         ]
         y_m = pdf.get_y()
         for i, (label, val) in enumerate(macros):
@@ -199,33 +223,27 @@ async def generate_pdf(req: PDFRequest):
             pdf.cell(col_w - 2, 5, label, align="C")
         pdf.ln(8)
 
-        # Ingredients
         pdf.set_text_color(80, 80, 80)
         pdf.set_font("Helvetica", "B", 9)
         pdf.cell(0, 5, "Ingredients:", ln=True)
         pdf.set_font("Helvetica", "", 9)
         pdf.set_text_color(100, 100, 100)
-        pdf.multi_cell(0, 5, "  -  ".join(repas.ingredients))
+        pdf.multi_cell(0, 5, "  -  ".join(r_ing))
         pdf.ln(4)
 
-        # Separator
         pdf.set_draw_color(220, 220, 220)
         pdf.set_line_width(0.3)
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(5)
 
-    # Footer
     pdf.set_y(-18)
     pdf.set_font("Helvetica", "I", 8)
     pdf.set_text_color(180, 180, 180)
     pdf.cell(0, 10, "Genere par GymFit AI  |  Plan personnalise", align="C")
 
-    # Return as base64
     pdf_bytes  = bytes(pdf.output())
     pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
     return {"pdf_base64": pdf_base64, "filename": f"plan_{req.plan_name}.pdf"}
-
-# ── Health check ───────────────────────────────────────────────────────────────
 
 @app.get("/")
 async def root():
